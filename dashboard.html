@@ -1,0 +1,265 @@
+FF<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MARYJ Fabrics & More — Customer Measurements</title>
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Arial,sans-serif;background:#f8f3f5;color:#241f22}
+    .wrap{max-width:1100px;margin:auto;padding:24px}
+    header{display:flex;justify-content:space-between;align-items:center;gap:15px;margin-bottom:24px}
+    h1{margin:0;font-size:25px}
+    .card{background:#fff;border-radius:16px;padding:22px;box-shadow:0 8px 30px rgba(0,0,0,.07);margin-bottom:20px}
+    input,textarea,button{font:inherit}
+    input,textarea{width:100%;padding:11px 12px;border:1px solid #ddd;border-radius:9px}
+    textarea{min-height:90px;resize:vertical}
+    label{display:block;font-size:13px;font-weight:600;margin:0 0 6px}
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+    .full{grid-column:1/-1}
+    button{border:0;border-radius:9px;padding:11px 16px;cursor:pointer}
+    .primary{background:#d98fa8;color:#fff}
+    .dark{background:#292326;color:#fff}
+    .light{background:#eee}
+    .danger{background:#b84d5e;color:#fff}
+    .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+    .hidden{display:none}
+    .status{padding:10px;border-radius:8px;margin-top:12px;background:#f1edf0}
+    .customer{border:1px solid #eee;border-radius:12px;padding:15px;margin-top:12px}
+    .customer strong{font-size:17px}
+    .small{font-size:13px;color:#666}
+    @media(max-width:700px){.grid{grid-template-columns:1fr 1fr}}
+    @media(max-width:480px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>MARYJ Fabrics & More</h1>
+      <div class="small">Private Customer Measurements</div>
+    </div>
+    <button id="logoutBtn" class="dark hidden">Log out</button>
+  </header>
+
+  <section id="loginCard" class="card">
+    <h2>Private Login</h2>
+    <p class="small">This area is for authorized MARYJ staff only.</p>
+    <div class="grid">
+      <div class="full">
+        <label>Email</label>
+        <input id="email" type="email" autocomplete="username">
+      </div>
+      <div class="full">
+        <label>Password</label>
+        <input id="password" type="password" autocomplete="current-password">
+      </div>
+    </div>
+    <div class="actions">
+      <button id="loginBtn" class="primary">Log in</button>
+    </div>
+    <div id="loginStatus" class="status hidden"></div>
+  </section>
+
+  <main id="app" class="hidden">
+    <section class="card">
+      <h2 id="formTitle">Add Customer</h2>
+      <input id="customerId" type="hidden">
+      <div class="grid">
+        <div><label>Customer Name *</label><input id="customer_name"></div>
+        <div><label>Phone *</label><input id="phone"></div>
+        <div><label>Bust</label><input id="bust" type="number" step="0.1"></div>
+        <div><label>Waist</label><input id="waist" type="number" step="0.1"></div>
+        <div><label>Hip</label><input id="hip" type="number" step="0.1"></div>
+        <div><label>Shoulder</label><input id="shoulder" type="number" step="0.1"></div>
+        <div><label>Sleeve Length</label><input id="sleeve_length" type="number" step="0.1"></div>
+        <div><label>Top Length</label><input id="top_length" type="number" step="0.1"></div>
+        <div><label>Trouser Length</label><input id="trouser_length" type="number" step="0.1"></div>
+        <div><label>Skirt Length</label><input id="skirt_length" type="number" step="0.1"></div>
+        <div><label>Neck</label><input id="neck" type="number" step="0.1"></div>
+        <div><label>Thigh</label><input id="thigh" type="number" step="0.1"></div>
+        <div><label>Armhole</label><input id="armhole" type="number" step="0.1"></div>
+        <div class="full"><label>Notes</label><textarea id="notes"></textarea></div>
+      </div>
+      <div class="actions">
+        <button id="saveBtn" class="primary">Save Customer</button>
+        <button id="cancelBtn" class="light hidden">Cancel Edit</button>
+      </div>
+      <div id="formStatus" class="status hidden"></div>
+    </section>
+
+    <section class="card">
+      <h2>Customers</h2>
+      <input id="search" placeholder="Search by customer name or phone">
+      <div id="customerList"></div>
+    </section>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* Replace these two placeholders with your Supabase Project URL and anon/publishable key. */
+const SUPABASE_URL = "https://sddbbwgikkxndwxgmykp.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_azBx01_F58--50Yn7r9H3Q_seZ3pXIb";
+
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const fields = [
+  "customer_name","phone","bust","waist","hip","shoulder","sleeve_length",
+  "top_length","trouser_length","skirt_length","neck","thigh","armhole","notes"
+];
+
+const $ = id => document.getElementById(id);
+let customers = [];
+
+function showStatus(id, message, isError=false){
+  const el=$(id); el.textContent=message; el.classList.remove("hidden");
+  el.style.background = isError ? "#f9e7ea" : "#eee8eb";
+}
+
+function clearStatus(id){ $(id).classList.add("hidden"); }
+
+async function login(){
+  clearStatus("loginStatus");
+  const { error } = await db.auth.signInWithPassword({
+    email: $("email").value.trim(),
+    password: $("password").value
+  });
+  if(error){ showStatus("loginStatus", error.message, true); return; }
+  await refreshUI();
+}
+
+async function refreshUI(){
+  const { data:{ session } } = await db.auth.getSession();
+  const loggedIn = !!session;
+  $("loginCard").classList.toggle("hidden", loggedIn);
+  $("app").classList.toggle("hidden", !loggedIn);
+  $("logoutBtn").classList.toggle("hidden", !loggedIn);
+  if(loggedIn) loadCustomers();
+}
+
+async function logout(){
+  await db.auth.signOut();
+  resetForm();
+  await refreshUI();
+}
+
+function resetForm(){
+  $("customerId").value="";
+  fields.forEach(f => $(f).value="");
+  $("formTitle").textContent="Add Customer";
+  $("saveBtn").textContent="Save Customer";
+  $("cancelBtn").classList.add("hidden");
+  clearStatus("formStatus");
+}
+
+function formData(ownerId){
+  const row = { owner_id: ownerId };
+  fields.forEach(f => {
+    const value = $(f).value.trim();
+    row[f] = value === "" ? null : (["customer_name","phone","notes"].includes(f) ? value : Number(value));
+  });
+  return row;
+}
+
+async function saveCustomer(){
+  clearStatus("formStatus");
+  const { data:{ user } } = await db.auth.getUser();
+  if(!user){ showStatus("formStatus","Please log in again.",true); return; }
+
+  const name=$("customer_name").value.trim();
+  const phone=$("phone").value.trim();
+  if(!name || !phone){
+    showStatus("formStatus","Customer name and phone are required.",true);
+    return;
+  }
+
+  const id=$("customerId").value;
+  let result;
+  if(id){
+    const payload=formData(user.id);
+    delete payload.owner_id;
+    result = await db.from("customers").update(payload).eq("id", id);
+  }else{
+    result = await db.from("customers").insert(formData(user.id));
+  }
+
+  if(result.error){ showStatus("formStatus",result.error.message,true); return; }
+  showStatus("formStatus", id ? "Customer updated." : "Customer saved.");
+  resetForm();
+  await loadCustomers();
+}
+
+async function loadCustomers(){
+  const { data, error } = await db.from("customers")
+    .select("*")
+    .order("customer_name", { ascending:true });
+  if(error){ $("customerList").textContent=error.message; return; }
+  customers=data || [];
+  renderCustomers();
+}
+
+function renderCustomers(){
+  const q=$("search").value.trim().toLowerCase();
+  const filtered=customers.filter(c =>
+    (c.customer_name||"").toLowerCase().includes(q) ||
+    (c.phone||"").toLowerCase().includes(q)
+  );
+
+  $("customerList").innerHTML="";
+  if(!filtered.length){
+    $("customerList").innerHTML='<p class="small">No customers found.</p>';
+    return;
+  }
+
+  filtered.forEach(c=>{
+    const div=document.createElement("div");
+    div.className="customer";
+    div.innerHTML=`
+      <strong>${escapeHtml(c.customer_name||"")}</strong>
+      <div class="small">${escapeHtml(c.phone||"")}</div>
+      <div class="actions">
+        <button class="light" onclick="editCustomer('${c.id}')">Edit</button>
+        <button class="danger" onclick="deleteCustomer('${c.id}')">Delete</button>
+      </div>`;
+    $("customerList").appendChild(div);
+  });
+}
+
+function editCustomer(id){
+  const c=customers.find(x=>x.id===id);
+  if(!c)return;
+  $("customerId").value=id;
+  fields.forEach(f=>$(f).value=c[f] ?? "");
+  $("formTitle").textContent="Edit Customer";
+  $("saveBtn").textContent="Update Customer";
+  $("cancelBtn").classList.remove("hidden");
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+
+async function deleteCustomer(id){
+  if(!confirm("Delete this customer record? This cannot be undone.")) return;
+  const { error }=await db.from("customers").delete().eq("id",id);
+  if(error){ alert(error.message); return; }
+  await loadCustomers();
+}
+
+function escapeHtml(value){
+  return value.replace(/[&<>"']/g, ch => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+  }[ch]));
+}
+
+$("loginBtn").addEventListener("click",login);
+$("logoutBtn").addEventListener("click",logout);
+$("saveBtn").addEventListener("click",saveCustomer);
+$("cancelBtn").addEventListener("click",resetForm);
+$("search").addEventListener("input",renderCustomers);
+$("password").addEventListener("keydown",e=>{if(e.key==="Enter")login();});
+
+db.auth.onAuthStateChange(() => refreshUI());
+refreshUI();
+</script>
+</body>
+</html>
